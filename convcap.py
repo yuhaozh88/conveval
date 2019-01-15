@@ -65,9 +65,10 @@ class convcap(nn.Module):
         super(convcap, self).__init__()
         self.nimgfeatures = 4096
         self.is_attention = is_attention
-        self.nfeatures = 512
+        self.nfeatures = nfeatures
         self.dropout = dropout
 
+        # emb_0 and emb_1 transform transform word vector from one-hot to 512-dimention
         self.emb_0 = Embedding(num_wordclass, nfeatures, padding_idx = 0)
         self.emb_1 = Linear(nfeatures, nfeatures, dropout = dropout)
 
@@ -75,7 +76,7 @@ class convcap(nn.Module):
         self.resproj = Linear(nfeatures * 2, self.nfeatures, dropout = dropout)
 
         n_in = 2 * self.nfeatures
-        n_out = self.features
+        n_out = self.nfeatures
 
         self.n_layers = num_layers
         self.convs = nn.ModuleList()
@@ -91,7 +92,7 @@ class convcap(nn.Module):
         self.classifier_1 = Linear((nfeatures // 2), num_wordclass, dropout = dropout)
 
     def forward(self, imgsfeatures, imgsfc7, wordclass):
-        atten_buffer = None
+        attn_buffer = None
         wordemb = self.emb_0(wordclass)
         wordemb = self.emb_1(wordemb)
         x = wordemb.transpose(2, 1)
@@ -105,7 +106,46 @@ class convcap(nn.Module):
         y = y.unsqueeze(2).expand(batchsize, self.nfeatures, maxtokens)
         
         x = torch.cat([x, y], 1) # tensor x will be the input of caption CNN
+        '''
+        The size of tensor through out convolution process is quite tricky,
+        give an example to explain
+        Tensor x after concatenated with y has a shape of [2, 10, 10] and this is the
+        initial shape before the whole convolution process
 
+        Shape after each conv layer is here below
+        iteration time: 0
+        size before conv
+        torch.Size([2, 10, 10])
+        size after conv
+        torch.Size([2, 10, 14])
+        size after pad
+        torch.Size([2, 10, 10])
+        size after glu
+        torch.Size([2, 5, 10])
+        ========
+
+        iteration time: 1
+        size before conv
+        torch.Size([2, 5, 10])
+        size after conv
+        torch.Size([2, 10, 14])
+        size after pad
+        torch.Size([2, 10, 10])
+        size after glu
+        torch.Size([2, 5, 10])
+        ========
+
+        iteration time: 2
+        size before conv
+        torch.Size([2, 5, 10])
+        size after conv
+        torch.Size([2, 10, 14])
+        size after pad
+        torch.Size([2, 10, 10])
+        size after glu
+        torch.Size([2, 5, 10])
+        ========
+        '''
         for i, conv in enumerate(self.convs):
             if i == 0:
                 x = x.transpose(2, 1)
@@ -127,7 +167,10 @@ class convcap(nn.Module):
                 x, attn_buffer = attn(x, wordemb, imgsfeatures)
                 x = x.tranpose(2, 1)
             x = (x + residual) * math.sqrt(0.5)
-
+        '''
+        classifier_0 and classifier_1 is used to calculate the probability of generated
+        series
+        '''    
         x = x.transpose(2, 1)
         x = self.classifier_0(x)
         x = F.dropout(x, p = self.dropout, training = self.training)
