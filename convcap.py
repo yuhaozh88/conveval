@@ -9,7 +9,7 @@ def Conv1d(in_channels, out_channels, kernel_size, padding, dropout = 0):
     params = nn.Conv1d(in_channels, out_channels, kernel_size, padding = padding)
     std = math.sqrt(4 * (1 - dropout) / (kernel_size * in_channels))
     params.weight.data.normal_(mean = 0, std = std)
-    params.bias.zero_()
+    params.bias.data.zero_()
     return params
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
@@ -38,15 +38,19 @@ class AttentionLayer(nn.Module):
         residual = x
         x = (self.in_projection(x) + wordemb) * math.sqrt(0.5)
         b, c, f_h, f_w = imgsfeatures.size()
-        y = imgsfeatures.view(b, c, f_h, f_w)
+        # change the shape of image feature vector  
+        y = imgsfeatures.view(b, c, f_h * f_w)
 
         x = self.bmm(x, y)
 
         sz = x.size()
+        # softmax function will calculate the attention score for each location(feature map)
         x = F.softmax(x.view(sz[0] * sz[1], sz[2]))
         x = x.view(sz)
         attn_scores = x
-
+        '''
+        process below will restore the x 
+        '''
         y = y.permute(0, 2, 1)
 
         x = self.bmm(x, y)
