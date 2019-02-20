@@ -9,4 +9,3 @@
 *convcap.py* is the implementation of CNN for text part.
 
  
-
