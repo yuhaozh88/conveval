@@ -14,7 +14,19 @@ from torch.utils.data import Dataset
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
-class coco_loader(object):
+
+class Scale(object):
+  """Scale transform with list as size params"""
+
+  def __init__(self, size, interpolation=Image.BILINEAR):
+    self.size = size
+    self.interpolation = interpolation
+
+  def __call__(self, img):
+    return img.resize((self.size[1], self.size[0]), self.interpolation)
+
+
+class data_loader(object):
     '''
     load Microsoft COCO dataset
     load train/val/test dataset
@@ -43,4 +55,4 @@ class coco_loader(object):
             ])
         
     def get_split_info(self, split_file):
-        print('-')
+        print('-' * 10 )
